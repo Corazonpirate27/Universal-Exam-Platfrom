@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Exam Prep Suite Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Handlee&display=swap" rel="stylesheet">
+    
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; height: 100vh; overflow: hidden; }
+        .font-hand { font-family: 'Handlee', cursive; }
+        
+        /* PDF Container */
+        #pdf-wrapper { position: relative; width: 100%; height: 100%; background-color: #334155; overflow-y: auto; }
+        
+        /* PDF Page Wrapper */
+        .pdf-page-container { position: relative; margin: 20px auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); background-color: white; }
+        
+        /* Layers */
+        .canvas-wrapper { position: absolute; top: 0; left: 0; z-index: 1; }
+        .textLayer { position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; opacity: 0.2; line-height: 1.0; z-index: 2; }
+        .textLayer > span { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; }
+        ::selection { background: rgba(59, 130, 246, 0.3); }
+
+        /* Drawing Layer */
+        .drawing-layer { position: absolute; top: 0; left: 0; z-index: 3; touch-action: none; pointer-events: none; }
+        
+        /* Modes */
+        body.read-mode .drawing-layer { pointer-events: none; }
+        body.read-mode .textLayer { pointer-events: auto; }
+        body.examiner-mode .drawing-layer { pointer-events: auto; cursor: crosshair; }
+        body.examiner-mode .textLayer { pointer-events: none; }
+
+        /* Selection Toolbar */
+        #selection-toolbar {
+            position: fixed; z-index: 100; display: none;
+            background: #1e293b; color: white; padding: 6px; border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            gap: 8px; align-items: center;
+            transform: translateX(-50%) translateY(-100%); /* Center above selection */
+            transition: opacity 0.1s;
+        }
+        #selection-toolbar::after {
+            content: ''; position: absolute; top: 100%; left: 50%; margin-left: -5px;
+            border-width: 5px; border-style: solid;
+            border-color: #1e293b transparent transparent transparent;
+        }
+        #selection-toolbar button {
+            padding: 4px 8px; border-radius: 4px; display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600;
+        }
+        #selection-toolbar button:hover { background-color: #334155; }
+
+        /* Fallback Iframe */
+        #pdf-fallback { width: 100%; height: 100%; border: none; display: none; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* Controls */
+        .section-btn.active { background-color: #e0f2fe; color: #0284c7; border-bottom: 2px solid #0284c7; font-weight: 600; }
+        .omr-bubble { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; cursor: pointer; transition: all 0.2s; color: #64748b; }
+        .omr-bubble.selected { background-color: #3b82f6; border-color: #3b82f6; color: white; }
+        .omr-bubble:hover { border-color: #3b82f6; background-color: #eff6ff; }
+        
+        /* Notepad */
+        #examiner-notepad { transition: transform 0.3s ease-in-out; width: 380px; }
+        #examiner-notepad.hidden-panel { transform: translateX(100%); }
+        .color-btn.active { border-color: #1e293b; transform: scale(1.1); box-shadow: 0 0 0 2px rgba(0,0,0,0.2); }
+        .tool-btn.active { background-color: #e2e8f0; color: #0f172a; }
+    </style>
+</head>
+<body class="flex flex-col h-screen text-slate-800 read-mode">
+
+    <!-- FLOATING SELECTION TOOLBAR -->
+    <div id="selection-toolbar">
+        <button onclick="highlightSelection()" class="text-yellow-400 hover:text-yellow-300">
+            <i data-lucide="highlighter" class="w-4 h-4"></i> Highlight
+        </button>
+        <div class="w-px h-4 bg-slate-600"></div>
+        <button onclick="undoLastHighlight()">
+            <i data-lucide="undo-2" class="w-4 h-4"></i> Undo
+        </button>
+        <button onclick="clearSelectionUI()" class="text-slate-400 hover:text-white">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+    </div>
+
+    <!-- 1. SETUP SCREEN -->
+    <div id="setup-screen" class="fixed inset-0 z-50 bg-slate-50 overflow-y-auto flex items-center justify-center p-4">
+        <div class="max-w-4xl w-full bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col md:flex-row">
+            <!-- Sidebar -->
+            <div class="md:w-1/3 bg-slate-900 p-8 text-white flex flex-col justify-between relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-full bg-blue-600/10 z-0"></div>
+                <div class="z-10">
+                    <h1 class="text-3xl font-bold mb-2">UniPrep Pro</h1>
+                    <p class="text-slate-400 text-sm">Universal Exam Platform</p>
+                </div>
+                <div class="z-10 space-y-4 mt-8">
+                    <div class="exam-option cursor-pointer p-4 rounded-xl bg-slate-800 border border-slate-700 hover:border-blue-500 hover:bg-slate-750 transition-all group" onclick="selectExam('ielts', this)">
+                        <div class="flex items-center justify-between mb-2"><span class="font-bold text-lg">IELTS</span><i data-lucide="globe" class="text-slate-500 group-hover:text-blue-400"></i></div>
+                        <p class="text-xs text-slate-400">Audio Recording & Rubrics</p>
+                    </div>
+                    <div class="exam-option cursor-pointer p-4 rounded-xl bg-slate-800 border border-slate-700 hover:border-pink-500 hover:bg-slate-750 transition-all group" onclick="selectExam('pte', this)">
+                        <div class="flex items-center justify-between mb-2"><span class="font-bold text-lg">PTE</span><i data-lucide="monitor" class="text-slate-500 group-hover:text-pink-400"></i></div>
+                        <p class="text-xs text-slate-400">Integrated Speaking</p>
+                    </div>
+                    <div class="exam-option cursor-pointer p-4 rounded-xl bg-slate-800 border border-slate-700 hover:border-red-500 hover:bg-slate-750 transition-all group" onclick="selectExam('loksewa', this)">
+                        <div class="flex items-center justify-between mb-2"><span class="font-bold text-lg">Loksewa</span><i data-lucide="file-text" class="text-slate-500 group-hover:text-red-400"></i></div>
+                        <p class="text-xs text-slate-400">OMR & Negative Marking</p>
+                    </div>
+                </div>
+                <div class="z-10 mt-8">
+                    <label class="flex items-center gap-2 cursor-pointer hover:text-blue-300 transition-colors text-xs text-slate-400">
+                        <i data-lucide="upload"></i> Load Saved Session
+                        <input type="file" id="session-upload" accept=".json" class="hidden" onchange="loadSessionFile(this)">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Upload -->
+            <div class="md:w-2/3 p-8 flex flex-col justify-center bg-white relative">
+                <!-- FIX: Added 'pointer-events-none' to allow clicks to pass through to z-30 buttons if needed, 
+                     but mostly we rely on the buttons being Z-30 to sit ON TOP of this overlay -->
+                <div id="upload-overlay" class="absolute inset-0 bg-white/80 z-20 flex items-center justify-center backdrop-blur-sm">
+                    <div class="text-center">
+                        <i data-lucide="arrow-left" class="w-8 h-8 mx-auto text-slate-400 mb-2"></i>
+                        <p class="text-slate-500 font-medium">Please select an exam type first</p>
+                    </div>
+                </div>
+
+                <!-- FIX: Added 'z-30 relative' so buttons float ABOVE the overlay -->
+                <div class="flex justify-center gap-4 mb-8 z-30 relative">
+                     <button onclick="selectExam('ielts', this)" class="exam-btn px-4 py-2 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-blue-50 bg-white transition text-sm font-bold flex items-center gap-2 shadow-sm"><i data-lucide="globe" class="w-4 h-4"></i> IELTS</button>
+                     <button onclick="selectExam('pte', this)" class="exam-btn px-4 py-2 rounded-lg border border-slate-200 hover:border-pink-500 hover:bg-pink-50 bg-white transition text-sm font-bold flex items-center gap-2 shadow-sm"><i data-lucide="monitor" class="w-4 h-4"></i> PTE</button>
+                     <button onclick="selectExam('loksewa', this)" class="exam-btn px-4 py-2 rounded-lg border border-slate-200 hover:border-red-500 hover:bg-red-50 bg-white transition text-sm font-bold flex items-center gap-2 shadow-sm"><i data-lucide="file-text" class="w-4 h-4"></i> Loksewa</button>
+                </div>
+
+                <h2 class="text-2xl font-bold text-slate-800 mb-6" id="upload-title">Upload Materials</h2>
+                <div class="space-y-4">
+                    <div class="border-2 border-dashed border-slate-300 rounded-xl p-6 hover:border-blue-500 transition-colors bg-slate-50 text-center">
+                        <label class="cursor-pointer block">
+                            <i data-lucide="file-up" class="w-8 h-8 mx-auto text-slate-400 mb-2"></i>
+                            <span class="block font-semibold text-slate-700">Upload Question Paper (PDF)</span>
+                            <input type="file" id="pdf-upload" accept="application/pdf" class="hidden" onchange="handleFileSelect(this)">
+                            <div id="pdf-status" class="mt-2 text-sm font-bold text-green-600 hidden">PDF Ready</div>
+                        </label>
+                    </div>
+                    <div class="border border-slate-200 rounded-xl p-4 flex items-center justify-between hover:border-blue-500 transition-colors bg-white">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-blue-100 p-2 rounded-lg text-blue-600"><i data-lucide="music"></i></div>
+                            <div>
+                                <span class="block font-medium text-slate-700 text-sm">Audio Tracks</span>
+                                <span class="text-xs text-slate-400" id="audio-hint">Optional</span>
+                            </div>
+                        </div>
+                        <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-bold transition-colors">
+                            Select Files
+                            <input type="file" id="audio-upload" accept="audio/*" multiple class="hidden" onchange="handleAudioSelect(this)">
+                        </label>
+                    </div>
+                    <div id="audio-status" class="text-xs text-right text-slate-500 px-1">No audio selected</div>
+                </div>
+                <button type="button" onclick="launchPlatform()" id="launch-btn" disabled class="mt-8 w-full bg-slate-900 text-slate-500 font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-not-allowed">Start Exam</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. MAIN INTERFACE -->
+    <div id="main-ui" class="hidden flex-col h-full">
+        <header class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 shrink-0 z-20 shadow-sm">
+            <div class="flex items-center gap-6">
+                <div class="flex flex-col">
+                    <span class="font-bold text-lg tracking-tight" id="header-title">Exam</span>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mock Test</span>
+                </div>
+                <nav id="nav-container" class="hidden md:flex gap-1"></nav>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button type="button" onclick="saveSession()" class="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-full" title="Save Progress">
+                    <i data-lucide="save" class="w-5 h-5"></i>
+                </button>
+
+                <div class="flex items-center gap-1 bg-slate-100 rounded-lg px-2 py-1 border border-slate-200">
+                    <button type="button" onclick="adjustZoom(-0.2)" class="p-1 text-slate-600 hover:bg-white rounded"><i data-lucide="minus" class="w-3 h-3"></i></button>
+                    <span id="zoom-display" class="text-xs font-mono w-10 text-center">100%</span>
+                    <button type="button" onclick="adjustZoom(0.2)" class="p-1 text-slate-600 hover:bg-white rounded"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                </div>
+
+                <div id="audio-controls" class="hidden items-center gap-2 bg-slate-100 rounded-full px-3 py-1 border border-slate-200">
+                    <button type="button" onclick="togglePlay()" class="p-1 hover:text-blue-600"><i id="play-icon" data-lucide="play" class="w-4 h-4"></i></button>
+                    <div class="text-xs font-mono w-10 text-center" id="audio-time">0:00</div>
+                    <select id="track-select" class="bg-transparent text-xs font-medium max-w-[80px] outline-none" onchange="changeTrack(this.value)"></select>
+                </div>
+
+                <div class="bg-red-50 text-red-600 px-3 py-1.5 rounded-md font-mono font-bold text-sm flex items-center gap-2 border border-red-100">
+                    <i data-lucide="clock" class="w-4 h-4"></i> <span id="global-timer">00:00:00</span>
+                </div>
+
+                <button type="button" onclick="toggleExaminerMode()" id="examiner-toggle" class="ml-2 px-3 py-1.5 bg-slate-800 text-white text-xs font-bold rounded-full hover:bg-slate-700 transition-colors flex items-center gap-2">
+                    <i data-lucide="pen-tool" class="w-3 h-3"></i> Tools
+                </button>
+            </div>
+        </header>
+
+        <div class="flex-1 flex overflow-hidden relative">
+            <!-- PDF Wrapper -->
+            <div class="w-1/2 h-full bg-slate-700 border-r border-slate-300 relative group">
+                <!-- Toolbar within PDF Area -->
+                <div class="absolute top-4 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-lg px-4 py-2 z-20 flex gap-3 items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onclick="setMode('read')" id="mode-read" class="tool-btn active p-2 rounded-full hover:bg-slate-100" title="Read / Select Text">
+                        <i data-lucide="mouse-pointer-2" class="w-4 h-4"></i>
+                    </button>
+                    <div class="w-px h-4 bg-slate-200"></div>
+                    <button onclick="setMode('highlight')" id="mode-highlight" class="tool-btn p-2 rounded-full hover:bg-slate-100 text-yellow-600" title="Highlighter Pen">
+                        <i data-lucide="highlighter" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div id="pdf-wrapper">
+                    <!-- Canvas & Text Layers injected here -->
+                </div>
+                
+                <div id="pdf-loader-overlay" class="hidden absolute inset-0 bg-slate-800/90 z-50 flex flex-col items-center justify-center text-white">
+                    <i data-lucide="loader" class="w-10 h-10 animate-spin mb-3"></i>
+                    <p>Loading Document...</p>
+                </div>
+                
+                <!-- Fallback Iframe (Hidden unless needed) -->
+                <iframe id="pdf-fallback"></iframe>
+            </div>
+            
+            <!-- Answer Sheets -->
+            <div class="w-1/2 h-full bg-white relative" id="sheets-container"></div>
+        </div>
+    </div>
+
+    <!-- EXAMINER PANEL -->
+    <div id="examiner-notepad" class="absolute top-0 right-0 h-full bg-white border-l border-slate-200 shadow-2xl z-30 hidden-panel flex flex-col">
+        <div class="p-4 bg-slate-900 text-white flex justify-between items-center">
+            <h3 class="font-bold flex items-center gap-2"><i data-lucide="check-square" class="w-4 h-4"></i> Examiner Tools</h3>
+            <button type="button" onclick="toggleExaminerMode()" class="hover:text-slate-300"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+        <div class="p-4 border-b border-slate-100 bg-slate-50">
+            <p class="text-xs font-bold text-slate-500 mb-2 uppercase">Freehand Pen</p>
+            <div class="flex gap-2 mb-3">
+                <button type="button" onclick="setPenColor('rgba(250, 204, 21, 0.5)', this)" class="color-btn active w-6 h-6 rounded-full bg-yellow-300"></button>
+                <button type="button" onclick="setPenColor('rgba(74, 222, 128, 0.5)', this)" class="color-btn w-6 h-6 rounded-full bg-green-400"></button>
+                <button type="button" onclick="setPenColor('rgba(244, 114, 182, 0.5)', this)" class="color-btn w-6 h-6 rounded-full bg-pink-400"></button>
+                <button type="button" onclick="setEraser(this)" class="color-btn w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center"><i data-lucide="eraser" class="w-3 h-3 text-slate-600"></i></button>
+            </div>
+            <input type="range" min="4" max="40" value="12" class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer" oninput="setPenSize(this.value)">
+        </div>
+        <div class="flex-1 p-4 bg-yellow-50">
+            <textarea id="examiner-notes" class="w-full h-full bg-transparent resize-none outline-none font-hand text-slate-800 text-lg leading-loose placeholder-slate-400" placeholder="Notes..."></textarea>
+        </div>
+        <div class="p-4 bg-slate-100 border-t border-slate-200">
+            <div class="flex justify-between items-center">
+                <span class="font-bold text-slate-700">Calculated Score</span>
+                <span class="bg-slate-800 text-white px-3 py-1 rounded font-mono font-bold" id="calc-score">-</span>
+            </div>
+        </div>
+    </div>
+
+    <audio id="main-audio" class="hidden"></audio>
+
+    <script>
+        lucide.createIcons();
+
+        // STATE
+        let currentExam = null;
+        let audioFiles = [];
+        let pdfDoc = null;
+        let currentScale = 1.0;
+        let isExaminerMode = false;
+        let isRendering = false; 
+        let pdfIntersectionObserver = null;
+        let currentMode = 'read'; // 'read' or 'highlight'
+        
+        // Pen Config
+        let highlighterColor = 'rgba(250, 204, 21, 0.5)';
+        let highlighterSize = 12;
+        let isEraser = false;
+        
+        // Drawing History for Undo
+        let drawingHistory = [];
+        
+        // Recorder State
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioBlob = null;
+        let isRecording = false;
+
+        // CONFIG
+        const examConfigs = {
+            'ielts': {
+                title: 'IELTS',
+                tabs: [ {id:'listening', label:'Listening'}, {id:'reading', label:'Reading'}, {id:'writing', label:'Writing'}, {id:'speaking', label:'Speaking'} ],
+                renderSheets: renderIELTSSheets
+            },
+            'pte': {
+                title: 'PTE Academic',
+                tabs: [ {id:'speaking_writing', label:'Speak & Write'}, {id:'reading', label:'Reading'}, {id:'listening', label:'Listening'} ],
+                renderSheets: renderPTESheets
+            },
+            'loksewa': {
+                title: 'Loksewa (PSC)',
+                tabs: [ {id:'paper1', label:'Paper 1 (GK/IQ)'}, {id:'paper2', label:'Paper 2 (Subjective)'}, {id:'paper3', label:'Paper 3 (Subjective)'} ],
+                renderSheets: renderLoksewaSheets
+            }
+        };
+
+        // SETUP
+        function selectExam(type, el) {
+            currentExam = type;
+            document.querySelectorAll('.exam-btn').forEach(e => {
+                e.classList.remove('bg-blue-50', 'border-blue-500', 'text-blue-600', 'bg-pink-50', 'border-pink-500', 'text-pink-600', 'bg-red-50', 'border-red-500', 'text-red-600');
+                e.classList.add('border-slate-200');
+            });
+            const colors = { ielts: ['bg-blue-50', 'border-blue-500', 'text-blue-600'], pte: ['bg-pink-50', 'border-pink-500', 'text-pink-600'], loksewa: ['bg-red-50', 'border-red-500', 'text-red-600'] };
+            el.classList.remove('border-slate-200');
+            el.classList.add(...colors[type]);
+            
+            document.getElementById('upload-overlay').classList.add('hidden');
+            document.getElementById('upload-title').textContent = `Upload ${examConfigs[type].title} Materials`;
+            checkReady();
+        }
+
+        function handleFileSelect(input) { if(input.files.length > 0) { document.getElementById('pdf-status').classList.remove('hidden'); checkReady(); } }
+        function handleAudioSelect(input) { const f=Array.from(input.files); if(f.length>0) { audioFiles=f.sort((a,b)=>a.name.localeCompare(b.name)); document.getElementById('audio-status').textContent=`${f.length} tracks`; const s=document.getElementById('track-select'); s.innerHTML=''; audioFiles.forEach((fl,i)=>{const o=document.createElement('option');o.value=i;o.text=`Track ${i+1}`;s.appendChild(o);}); } }
+        function checkReady() { const p=document.getElementById('pdf-upload').files.length>0; const b=document.getElementById('launch-btn'); if(currentExam&&p){ b.disabled=false; b.classList.remove('bg-slate-900','text-slate-500','cursor-not-allowed'); b.classList.add('bg-blue-600','text-white','hover:bg-blue-700'); } }
+
+        function launchPlatform() {
+            const file = document.getElementById('pdf-upload').files[0];
+            const fileUrl = URL.createObjectURL(file);
+            
+            // 1. Switch to Main UI
+            document.getElementById('setup-screen').classList.add('hidden');
+            document.getElementById('main-ui').classList.remove('hidden');
+            document.getElementById('main-ui').classList.add('flex');
+            document.getElementById('header-title').textContent = examConfigs[currentExam].title;
+
+            if(audioFiles.length > 0) { 
+                document.getElementById('audio-controls').classList.remove('hidden'); 
+                document.getElementById('audio-controls').classList.add('flex'); 
+                loadTrack(0); 
+            }
+
+            // 2. Try Rendering PDF with Canvas (for Highlighter)
+            setTimeout(() => {
+                const reader = new FileReader();
+                reader.onload = function() {
+                    const typedarray = new Uint8Array(this.result);
+                    pdfjsLib.getDocument(typedarray).promise.then(pdf => {
+                        pdfDoc = pdf;
+                        renderAllPages();
+                    }).catch(err => {
+                        console.error("PDF JS Render Failed", err);
+                        enableFallbackViewer(fileUrl);
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            }, 100);
+
+            buildInterface(); 
+            startTimer();
+            
+            // Monitor selection
+            document.addEventListener('mouseup', handleTextSelection);
+        }
+
+        function enableFallbackViewer(url) {
+            document.getElementById('pdf-wrapper').style.display = 'none';
+            const fallback = document.getElementById('pdf-fallback');
+            fallback.style.display = 'block';
+            fallback.src = url;
+            document.getElementById('examiner-toggle').disabled = true;
+            document.getElementById('examiner-toggle').classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        function buildInterface() {
+            const cfg=examConfigs[currentExam]; const nc=document.getElementById('nav-container'); const sc=document.getElementById('sheets-container');
+            nc.innerHTML=''; sc.innerHTML='';
+            cfg.tabs.forEach((t,i)=>{
+                const b=document.createElement('button'); 
+                b.type = "button"; 
+                b.className=`section-btn px-4 py-2 text-sm font-medium rounded-t-md hover:bg-slate-50 transition-colors ${i===0?'active':''}`;
+                b.textContent=t.label; b.onclick=()=>switchSection(t.id); b.id=`btn-${t.id}`; nc.appendChild(b);
+                const s=document.createElement('div'); s.id=`sheet-${t.id}`; s.className=`section-sheet flex-1 h-full overflow-y-auto p-8 ${i===0?'':'hidden'}`; sc.appendChild(s);
+            });
+            cfg.renderSheets(sc);
+        }
+
+        function switchSection(id) {
+            document.querySelectorAll('.section-btn').forEach(b=>b.classList.remove('active')); document.getElementById(`btn-${id}`).classList.add('active');
+            document.querySelectorAll('.section-sheet').forEach(s=>s.classList.add('hidden')); document.getElementById(`sheet-${id}`).classList.remove('hidden');
+        }
+
+        // RENDERERS (Same as before, simplified for brevity)
+        function renderIELTSSheets() {
+            ['listening','reading'].forEach(id=>{
+                const d=document.getElementById(`sheet-${id}`); d.innerHTML=`<h2 class="text-xl font-bold mb-4 capitalize">${id} Answer Sheet</h2><div class="grid grid-cols-1 gap-3" id="grid-${id}"></div>`;
+                const g=d.querySelector(`#grid-${id}`); for(let i=1;i<=40;i++) g.innerHTML+=`<div class="flex items-center gap-3 p-2 rounded hover:bg-slate-50 border border-transparent hover:border-slate-100 question-row"><span class="font-mono text-slate-400 w-6 text-right">${i}.</span><input type="text" class="answer-input flex-1 rounded px-3 py-1 border border-slate-200 text-sm input-field" id="${id}-${i}" placeholder="Answer..."></div>`;
+            });
+            document.getElementById('sheet-writing').innerHTML=`<div class="flex flex-col h-full gap-4"><div class="flex-1 flex flex-col"><div class="flex justify-between items-center mb-2"><label class="font-bold text-slate-700">Task 1</label><span class="text-xs text-slate-500 font-mono bg-slate-100 px-2 py-1 rounded">Words: <span id="wc-ielts-1">0</span></span></div><textarea id="w-task1" class="flex-1 border border-slate-200 rounded-lg p-4 resize-none focus:border-blue-500 outline-none input-field" oninput="countWords(this, 'wc-ielts-1')"></textarea></div><div class="flex-[1.5] flex flex-col"><div class="flex justify-between items-center mb-2"><label class="font-bold text-slate-700">Task 2</label><span class="text-xs text-slate-500 font-mono bg-slate-100 px-2 py-1 rounded">Words: <span id="wc-ielts-2">0</span></span></div><textarea id="w-task2" class="flex-1 border border-slate-200 rounded-lg p-4 resize-none focus:border-blue-500 outline-none input-field" oninput="countWords(this, 'wc-ielts-2')"></textarea></div></div>`;
+            renderRecorder('sheet-speaking');
+        }
+
+        function renderPTESheets() {
+            const sw=document.getElementById('sheet-speaking_writing');
+            sw.innerHTML=`<div class="space-y-8"><div class="bg-pink-50 p-4 rounded-xl border border-pink-100" id="pte-recorder-container"><h3 class="font-bold text-pink-800 mb-2 flex items-center gap-2"><i data-lucide="mic" class="w-4 h-4"></i> Speaking</h3></div><div><div class="flex justify-between items-center mb-2"><h3 class="font-bold text-slate-800">Essay</h3><span class="text-xs text-slate-500 font-mono bg-slate-100 px-2 py-1 rounded">Words: <span id="wc-pte">0</span></span></div><textarea id="pte-essay" class="w-full h-64 border border-slate-200 rounded-lg p-3 resize-none input-field" oninput="countWords(this, 'wc-pte')"></textarea></div></div>`;
+            renderRecorder('pte-recorder-container', false);
+            ['reading','listening'].forEach(id=>{ document.getElementById(`sheet-${id}`).innerHTML=`<h2 class="text-xl font-bold mb-4 capitalize">${id}</h2><textarea id="${id}-notes" class="w-full h-[500px] border border-slate-200 rounded p-4 font-mono input-field" placeholder="Notes / Answers"></textarea>`; });
+        }
+
+        function renderLoksewaSheets() {
+            const p1=document.getElementById('sheet-paper1'); let h=`<h2 class="text-xl font-bold mb-4">Paper 1 (OMR)</h2><div class="grid grid-cols-2 gap-x-8 gap-y-2">`;
+            for(let i=1;i<=50;i++) h+=`<div class="flex items-center justify-between py-1 border-b border-slate-50 question-row"><span class="font-mono text-sm text-slate-500 w-6">${i}.</span><div class="flex gap-2" id="omr-${i}"><div class="omr-bubble" onclick="selectBubble(this)">A</div><div class="omr-bubble" onclick="selectBubble(this)">B</div><div class="omr-bubble" onclick="selectBubble(this)">C</div><div class="omr-bubble" onclick="selectBubble(this)">D</div></div></div>`;
+            p1.innerHTML=h+'</div>';
+            ['paper2','paper3'].forEach(id=>{ document.getElementById(`sheet-${id}`).innerHTML=`<h2 class="text-xl font-bold mb-4">Subjective</h2><textarea id="${id}-ans" class="w-full h-96 border border-slate-200 rounded p-4 text-sm resize-none input-field"></textarea>`; });
+        }
+
+        function renderRecorder(containerId, clear=true) {
+            const c = document.getElementById(containerId);
+            const html = `
+                <div class="flex flex-col items-center justify-center bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 p-6">
+                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-600 animate-pulse" id="rec-icon"><i data-lucide="mic" class="w-8 h-8"></i></div>
+                    <div class="flex gap-1 h-8 items-end mb-4" id="visualizer">
+                        <div class="visualizer-bar h-2"></div><div class="visualizer-bar h-4"></div><div class="visualizer-bar h-6"></div><div class="visualizer-bar h-3"></div><div class="visualizer-bar h-5"></div>
+                    </div>
+                    <div class="font-mono text-3xl font-bold mb-4 text-slate-800" id="rec-timer">00:00</div>
+                    <div class="flex gap-3">
+                        <button type="button" onclick="toggleRecording()" id="rec-btn" class="bg-blue-600 text-white px-6 py-2 rounded-full font-bold hover:bg-blue-700 transition-all shadow-lg">Start Recording</button>
+                        <a id="download-link" class="hidden bg-green-500 text-white px-6 py-2 rounded-full font-bold hover:bg-green-600 transition-all shadow-lg flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Save</a>
+                    </div>
+                    <audio id="playback-audio" controls class="mt-4 hidden w-full"></audio>
+                </div>`;
+            if(clear) c.innerHTML = html; else c.innerHTML += html;
+            lucide.createIcons();
+        }
+
+        // RECORDER LOGIC
+        async function toggleRecording() {
+            const btn = document.getElementById('rec-btn');
+            const timerDisplay = document.getElementById('rec-timer');
+            const downloadLink = document.getElementById('download-link');
+            const playback = document.getElementById('playback-audio');
+
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.start();
+                    isRecording = true;
+                    
+                    btn.textContent = "Stop Recording";
+                    btn.classList.replace('bg-blue-600', 'bg-red-600');
+                    
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = () => {
+                        audioBlob = new Blob(audioChunks, { type: 'audio/mpeg' });
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        playback.src = audioUrl;
+                        playback.classList.remove('hidden');
+                        downloadLink.href = audioUrl;
+                        downloadLink.download = `speaking_response_${Date.now()}.mp3`;
+                        downloadLink.classList.remove('hidden');
+                    };
+
+                    // Visualizer Mock
+                    const bars = document.querySelectorAll('.visualizer-bar');
+                    speakingInterval = setInterval(() => {
+                        const s = parseInt(timerDisplay.innerText.split(':')[1]) + 1;
+                        timerDisplay.innerText = `00:${s.toString().padStart(2,'0')}`;
+                        bars.forEach(b => b.style.height = Math.random() * 24 + 4 + 'px');
+                    }, 1000);
+
+                } catch(err) { 
+                    console.error(err);
+                    alert("Microphone access denied or not available."); 
+                }
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                clearInterval(speakingInterval);
+                btn.textContent = "Record Again";
+                btn.classList.replace('bg-red-600', 'bg-blue-600');
+            }
+        }
+
+        // --- UPDATED PDF RENDERER (LAZY + TEXT LAYER) ---
+        async function renderAllPages() {
+            if (isRendering) return; 
+            isRendering = true;
+            
+            const c = document.getElementById('pdf-wrapper'); 
+            c.innerHTML = '';
+            
+            if(pdfIntersectionObserver) pdfIntersectionObserver.disconnect();
+
+            try {
+                if(!pdfDoc) throw new Error("No PDF loaded");
+
+                const p1 = await pdfDoc.getPage(1);
+                const u = p1.getViewport({scale:1});
+                const containerWidth = c.clientWidth || 600; 
+                const s = (containerWidth - 40)/u.width; 
+                const v = p1.getViewport({scale:s*currentScale});
+                
+                for(let i=1; i<=pdfDoc.numPages; i++) {
+                    const d = document.createElement('div');
+                    d.className='pdf-page-container';
+                    d.style.width=`${v.width}px`; 
+                    d.style.height=`${v.height}px`;
+                    d.dataset.pageNum = i;
+                    d.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400 text-xs"><i data-lucide="loader" class="animate-spin mr-2"></i> Page ${i}</div>`;
+                    c.appendChild(d);
+                }
+                lucide.createIcons(); 
+
+                await renderPageOnDemand(c.children[0], s*currentScale);
+                c.children[0].dataset.rendered = "true";
+
+                pdfIntersectionObserver = new IntersectionObserver((entries, obs) => {
+                    entries.forEach(entry => {
+                        if(entry.isIntersecting) {
+                            const target = entry.target;
+                            if(target.dataset.rendered !== "true") {
+                                renderPageOnDemand(target, s*currentScale);
+                                target.dataset.rendered = "true";
+                                obs.unobserve(target);
+                            }
+                        }
+                    });
+                }, { root: c, rootMargin: "600px" }); 
+
+                Array.from(c.children).slice(1).forEach(el => pdfIntersectionObserver.observe(el));
+
+            } catch(e) {
+                console.error("Render error", e);
+            } finally {
+                document.getElementById('pdf-loader-overlay').classList.add('hidden');
+                isRendering = false;
+            }
+        }
+
+        async function renderPageOnDemand(container, scale) {
+            const pageNum = parseInt(container.dataset.pageNum);
+            const p = await pdfDoc.getPage(pageNum);
+            const v = p.getViewport({scale: scale});
+            
+            container.innerHTML = ''; 
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = v.width; canvas.height = v.height;
+            canvas.className = 'canvas-wrapper';
+            const ctx = canvas.getContext('2d');
+            
+            // Text Layer
+            const textDiv = document.createElement('div');
+            textDiv.className = 'textLayer';
+            textDiv.style.width = `${v.width}px`;
+            textDiv.style.height = `${v.height}px`;
+            textDiv.style.setProperty('--scale-factor', v.scale);
+            
+            // Draw Layer
+            const drawCanvas = document.createElement('canvas'); 
+            drawCanvas.className = 'drawing-layer'; 
+            drawCanvas.width = v.width; drawCanvas.height = v.height;
+            initDrawing(drawCanvas);
+            
+            container.appendChild(canvas);
+            container.appendChild(textDiv); // Middle Layer for Text
+            container.appendChild(drawCanvas); // Top Layer for Drawings
+            
+            const renderTask = p.render({canvasContext: ctx, viewport: v});
+            const textTask = p.getTextContent().then(textContent => {
+                pdfjsLib.renderTextLayer({
+                    textContentSource: textContent,
+                    container: textDiv,
+                    viewport: v,
+                    textDivs: []
+                });
+            });
+
+            await Promise.all([renderTask.promise, textTask]);
+        }
+
+        function initDrawing(canvas) {
+            const ctx=canvas.getContext('2d'); let isD=false,lX=0,lY=0;
+            const draw=(e)=>{
+                if(!isD||!isExaminerMode)return;
+                const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top;
+                ctx.beginPath(); ctx.moveTo(lX,lY); ctx.lineTo(x,y);
+                if(isEraser){ctx.globalCompositeOperation='destination-out';ctx.lineWidth=highlighterSize*2;}
+                else{ctx.globalCompositeOperation='source-over';ctx.strokeStyle=highlighterColor;ctx.lineWidth=highlighterSize; ctx.lineCap = 'round'; ctx.lineJoin = 'round';}
+                ctx.stroke(); lX=x; lY=y;
+            };
+            canvas.addEventListener('mousedown',e=>{
+                if(isExaminerMode){
+                    isD=true; const r=canvas.getBoundingClientRect(); lX=e.clientX-r.left; lY=e.clientY-r.top;
+                    ctx.beginPath(); ctx.fillStyle = isEraser ? 'rgba(0,0,0,0)' : highlighterColor; 
+                    if(isEraser) { ctx.globalCompositeOperation = 'destination-out'; ctx.arc(lX, lY, highlighterSize, 0, Math.PI*2); }
+                    else { ctx.globalCompositeOperation = 'source-over'; ctx.arc(lX, lY, highlighterSize/2, 0, Math.PI*2); }
+                    ctx.fill();
+                }
+            });
+            canvas.addEventListener('mousemove',draw); window.addEventListener('mouseup',()=>isD=false);
+        }
+
+        // TEXT SELECTION LOGIC
+        function handleTextSelection(e) {
+            if (currentMode !== 'read') return;
+
+            const selection = window.getSelection();
+            const toolbar = document.getElementById('selection-toolbar');
+
+            if (selection.rangeCount > 0 && !selection.isCollapsed) {
+                // Check if inside PDF wrapper
+                const range = selection.getRangeAt(0);
+                const container = document.getElementById('pdf-wrapper');
+                if (container.contains(range.commonAncestorContainer)) {
+                    const rect = range.getBoundingClientRect();
+                    // Position Toolbar relative to viewport (since it's fixed)
+                    toolbar.style.display = 'flex';
+                    toolbar.style.top = `${rect.top - 10}px`;
+                    toolbar.style.left = `${rect.left + rect.width / 2}px`;
+                    return;
+                }
+            }
+            toolbar.style.display = 'none';
+        }
+
+        function highlightSelection() {
+            const selection = window.getSelection();
+            if (selection.rangeCount === 0) return;
+            
+            const range = selection.getRangeAt(0);
+            const rects = range.getClientRects();
+            
+            // Find the canvas/drawing layer for the page where text is selected
+            // Iterate rects to support multi-line selection
+            for (let i = 0; i < rects.length; i++) {
+                const r = rects[i];
+                // We need to find the page container under this rect
+                const elements = document.elementsFromPoint(r.left + 1, r.top + 1);
+                const pageContainer = elements.find(el => el.classList.contains('pdf-page-container'));
+                
+                if (pageContainer) {
+                    const drawCanvas = pageContainer.querySelector('.drawing-layer');
+                    if (drawCanvas) {
+                        const ctx = drawCanvas.getContext('2d');
+                        const canvasRect = drawCanvas.getBoundingClientRect();
+                        
+                        // Save history for Undo
+                        const state = ctx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
+                        drawingHistory.push({ canvas: drawCanvas, data: state });
+                        if(drawingHistory.length > 20) drawingHistory.shift();
+
+                        // Draw Highlight (Yellow Multiply)
+                        ctx.globalCompositeOperation = 'multiply';
+                        ctx.fillStyle = 'rgba(255, 255, 0, 0.4)';
+                        // Convert client coords to canvas coords
+                        const x = (r.left - canvasRect.left) * (drawCanvas.width / canvasRect.width);
+                        const y = (r.top - canvasRect.top) * (drawCanvas.height / canvasRect.height);
+                        const w = r.width * (drawCanvas.width / canvasRect.width);
+                        const h = r.height * (drawCanvas.height / canvasRect.height);
+                        
+                        ctx.fillRect(x, y, w, h);
+                        ctx.globalCompositeOperation = 'source-over'; // Reset
+                    }
+                }
+            }
+            
+            selection.removeAllRanges();
+            document.getElementById('selection-toolbar').style.display = 'none';
+        }
+
+        function undoLastHighlight() {
+            if (drawingHistory.length > 0) {
+                const last = drawingHistory.pop();
+                const ctx = last.canvas.getContext('2d');
+                ctx.putImageData(last.data, 0, 0);
+            }
+            document.getElementById('selection-toolbar').style.display = 'none';
+        }
+
+        function clearSelectionUI() {
+            window.getSelection().removeAllRanges();
+            document.getElementById('selection-toolbar').style.display = 'none';
+        }
+
+        // UTILS - MODES
+        function setMode(mode) {
+            currentMode = mode;
+            document.body.classList.remove('read-mode', 'examiner-mode');
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            
+            if (mode === 'read') {
+                document.body.classList.add('read-mode');
+                document.getElementById('mode-read').classList.add('active');
+                isExaminerMode = false;
+                document.getElementById('examiner-notepad').classList.add('hidden-panel');
+            } else {
+                document.body.classList.add('examiner-mode');
+                document.getElementById('mode-highlight').classList.add('active');
+                isExaminerMode = true;
+                document.getElementById('examiner-notepad').classList.remove('hidden-panel');
+            }
+        }
+
+        function toggleExaminerMode() { 
+            // Button trigger now explicitly sets modes
+            const panel = document.getElementById('examiner-notepad');
+            panel.classList.toggle('hidden-panel');
+            if (!panel.classList.contains('hidden-panel')) {
+                setMode('highlight');
+            } else {
+                setMode('read');
+            }
+        }
+
+        function selectBubble(el) { el.parentNode.querySelectorAll('.omr-bubble').forEach(b=>b.classList.remove('selected')); el.classList.add('selected'); }
+        function setPenColor(c,el) { isEraser=false; highlighterColor=c; document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('active')); el.classList.add('active'); }
+        function setEraser(el) { isEraser=true; document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('active')); el.classList.add('active'); }
+        function setPenSize(s) { highlighterSize=s; }
+        function adjustZoom(d) { 
+            if(isRendering) return; 
+            currentScale += d; 
+            if (currentScale < 0.5) currentScale = 0.5;
+            document.getElementById('zoom-display').innerText = Math.round(currentScale * 100) + '%';
+            renderAllPages(); 
+        }
+        
+        // SAVE / LOAD SESSION
+        function saveSession() {
+            const data = { exam: currentExam, timestamp: new Date().toISOString(), answers: {} };
+            document.querySelectorAll('.input-field').forEach(el => data.answers[el.id] = el.value);
+            if (currentExam === 'loksewa') {
+                data.answers.omr = {};
+                document.querySelectorAll('.omr-bubble.selected').forEach(b => {
+                    const qNum = b.parentNode.id.split('-')[1];
+                    data.answers.omr[qNum] = b.innerText;
+                });
+            }
+            data.notes = document.getElementById('examiner-notes').value;
+            const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `exam_session_${Date.now()}.json`; a.click();
+        }
+
+        function loadSessionFile(input) {
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = JSON.parse(e.target.result);
+                alert("Session Loaded! (Ensure you are in the correct exam mode)");
+                for (const [id, val] of Object.entries(data.answers)) {
+                    const el = document.getElementById(id);
+                    if (el) el.value = val;
+                }
+                if (data.answers.omr) {
+                    for (const [q, ans] of Object.entries(data.answers.omr)) {
+                        const container = document.getElementById(`omr-${q}`);
+                        if (container) {
+                            Array.from(container.children).find(c => c.innerText === ans)?.classList.add('selected');
+                        }
+                    }
+                }
+                if (data.notes) document.getElementById('examiner-notes').value = data.notes;
+            };
+            reader.readAsText(file);
+        }
+
+        // WORD COUNT
+        window.countWords = function(element, outputId) {
+            const val = element.value.trim();
+            const count = val === '' ? 0 : val.split(/\s+/).length;
+            document.getElementById(outputId).innerText = count;
+        };
+
+        // AUDIO & TIMER
+        const audio=document.getElementById('main-audio');
+        function loadTrack(i) { if(audioFiles[i]) { audio.src=URL.createObjectURL(audioFiles[i]); document.getElementById('track-select').value=i; } }
+        function changeTrack(i) { loadTrack(i); audio.play(); document.getElementById('play-icon').setAttribute('data-lucide','pause'); lucide.createIcons(); }
+        function togglePlay() { if(audio.paused){audio.play();document.getElementById('play-icon').setAttribute('data-lucide','pause');}else{audio.pause();document.getElementById('play-icon').setAttribute('data-lucide','play');} lucide.createIcons(); }
+        audio.ontimeupdate=()=>{ const s=Math.floor(audio.currentTime); document.getElementById('audio-time').innerText=`${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`; };
+        function startTimer() { let s=0; setInterval(()=>{s++;document.getElementById('global-timer').innerText=new Date(s*1000).toISOString().substr(11,8);},1000); }
+
+    </script>
+</body>
+</html>
