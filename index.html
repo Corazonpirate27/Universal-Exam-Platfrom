@@ -1,10 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Universal Exam Prep Suite Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Handlee&display=swap" rel="stylesheet">
@@ -15,6 +20,17 @@
 
     <style>
         :root {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --accent-color: #8b5cf6;
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(203, 213, 225, 0.5);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --body-bg-start: #f1f5f9;
+            --body-bg-end: #e2e8f0;
+        }
+        .dark {
             --bg-primary: #0f172a;
             --bg-secondary: #1e293b;
             --accent-color: #8b5cf6;
@@ -22,10 +38,12 @@
             --glass-border: rgba(255, 255, 255, 0.08);
             --text-primary: #f8fafc;
             --text-secondary: #94a3b8;
+            --body-bg-start: #020617;
+            --body-bg-end: #0f172a;
         }
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #020617 0%, #0f172a 100%);
+            background: linear-gradient(135deg, var(--body-bg-start) 0%, var(--body-bg-end) 100%);
             color: var(--text-primary);
             height: 100vh;
             overflow: hidden;
@@ -100,7 +118,7 @@
         .tool-btn.active { background-color: #e2e8f0; color: #0f172a; }
     </style>
 </head>
-<body class="flex flex-col h-screen text-slate-200 read-mode">
+<body class="flex flex-col h-screen text-slate-800 dark:text-slate-200 read-mode transition-colors duration-300">
 
     <!-- FLOATING SELECTION TOOLBAR -->
     <div id="selection-toolbar">
@@ -117,37 +135,47 @@
     </div>
 
     <!-- 1. SETUP SCREEN -->
-    <div id="setup-screen" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md overflow-y-auto flex items-center justify-center p-4">
+    <div id="setup-screen" class="fixed inset-0 z-50 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-md overflow-y-auto flex items-center justify-center p-4 transition-colors duration-300">
         <div class="max-w-4xl w-full glass rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row">
             <!-- Sidebar -->
-            <div class="md:w-1/3 bg-slate-900/50 p-8 text-white flex flex-col justify-between relative overflow-hidden border-r border-slate-700/30">
+            <div class="md:w-1/3 bg-white/50 dark:bg-slate-900/50 p-8 text-slate-800 dark:text-white flex flex-col justify-between relative overflow-hidden border-r border-slate-200/50 dark:border-slate-700/30">
                 <div class="absolute top-0 left-0 w-full h-full bg-violet-600/10 z-0"></div>
                 <div class="z-10">
-                    <h1 class="text-3xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-violet-400">UniPrep Pro</h1>
-                    <p class="text-slate-400 text-sm">Universal Exam Platform</p>
+                    <h1 class="text-3xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-400 dark:to-violet-400">UniPrep Pro</h1>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm">Universal Exam Platform</p>
                 </div>
                 <div class="z-10 space-y-4 mt-8">
-                    <div class="exam-option cursor-pointer p-4 rounded-xl bg-slate-800 border border-slate-700 hover:border-blue-500 hover:bg-slate-750 transition-all group" onclick="selectExam('ielts', this)">
+                    <div class="exam-option cursor-pointer p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-500 hover:bg-slate-50 dark:hover:bg-slate-750 transition-all group" onclick="selectExam('ielts', this)">
                         <div class="flex items-center justify-between mb-2"><span class="font-bold text-lg">IELTS</span><i data-lucide="globe" class="text-slate-500 group-hover:text-blue-400"></i></div>
                         <p class="text-xs text-slate-400">Audio Recording & Rubrics</p>
                     </div>
-                    <div class="exam-option cursor-pointer p-4 rounded-xl bg-slate-800 border border-slate-700 hover:border-pink-500 hover:bg-slate-750 transition-all group" onclick="selectExam('pte', this)">
+                    <div class="exam-option cursor-pointer p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-pink-500 hover:bg-slate-50 dark:hover:bg-slate-750 transition-all group" onclick="selectExam('pte', this)">
                         <div class="flex items-center justify-between mb-2"><span class="font-bold text-lg">PTE</span><i data-lucide="monitor" class="text-slate-500 group-hover:text-pink-400"></i></div>
                         <p class="text-xs text-slate-400">Integrated Speaking</p>
                     </div>
-                    <div class="exam-option cursor-pointer p-4 rounded-xl bg-slate-800 border border-slate-700 hover:border-red-500 hover:bg-slate-750 transition-all group" onclick="selectExam('loksewa', this)">
+                    <div class="exam-option cursor-pointer p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-red-500 hover:bg-slate-50 dark:hover:bg-slate-750 transition-all group" onclick="selectExam('loksewa', this)">
                         <div class="flex items-center justify-between mb-2"><span class="font-bold text-lg">Loksewa</span><i data-lucide="file-text" class="text-slate-500 group-hover:text-red-400"></i></div>
                         <p class="text-xs text-slate-400">OMR & Negative Marking</p>
                     </div>
                 </div>
                 <div class="z-10 mt-8">
+                    <button onclick="toggleTheme()" class="mb-6 flex items-center gap-3 w-full p-3 rounded-xl bg-white/10 dark:bg-slate-800/50 hover:bg-white/20 dark:hover:bg-slate-800 transition-colors border border-white/10 dark:border-slate-700/50 group">
+                        <div class="p-2 rounded-lg bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform">
+                            <i data-lucide="moon" id="theme-icon-sidebar" class="w-4 h-4"></i>
+                        </div>
+                        <div class="text-left">
+                            <span class="block text-sm font-bold text-slate-700 dark:text-slate-200">Theme</span>
+                            <span class="text-xs text-slate-500 dark:text-slate-400" id="theme-text-sidebar">Dark Mode</span>
+                        </div>
+                    </button>
+
                     <label class="text-xs font-bold text-slate-400 block mb-2 uppercase tracking-wider">Exam Settings</label>
-                    <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 mb-4">
-                        <label class="block text-xs text-slate-300 mb-1">Time Limit (Minutes)</label>
-                        <input type="number" id="exam-timer-input" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm outline-none focus:border-blue-500" placeholder="e.g. 60 (Leave empty for no limit)">
+                    <div class="bg-white/50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200/50 dark:border-slate-700/50 mb-4">
+                        <label class="block text-xs text-slate-600 dark:text-slate-300 mb-1">Time Limit (Minutes)</label>
+                        <input type="number" id="exam-timer-input" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-2 text-slate-800 dark:text-white text-sm outline-none focus:border-blue-500" placeholder="e.g. 60 (Leave empty for no limit)">
                     </div>
 
-                    <label class="flex items-center gap-2 cursor-pointer hover:text-blue-300 transition-colors text-xs text-slate-400">
+                    <label class="flex items-center gap-2 cursor-pointer hover:text-blue-500 dark:hover:text-blue-300 transition-colors text-xs text-slate-500 dark:text-slate-400">
                         <i data-lucide="upload"></i> Load Saved Session
                         <input type="file" id="session-upload" accept=".json" class="hidden" onchange="loadSessionFile(this)">
                     </label>
@@ -203,18 +231,22 @@
     </div>
 
     <!-- 2. MAIN INTERFACE -->
-    <div id="main-ui" class="hidden flex-col h-full bg-slate-950">
-        <header class="glass border-b border-slate-800 h-16 flex items-center justify-between px-4 shrink-0 z-20 shadow-sm text-white">
+    <div id="main-ui" class="hidden flex-col h-full bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+        <header class="glass border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-4 shrink-0 z-20 shadow-sm text-slate-800 dark:text-white">
             <div class="flex items-center gap-6">
                 <div class="flex flex-col">
-                    <span class="font-bold text-lg tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400" id="header-title">Exam</span>
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mock Test</span>
+                    <span class="font-bold text-lg tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-400 dark:to-violet-400" id="header-title">Exam</span>
+                    <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Mock Test</span>
                 </div>
                 <nav id="nav-container" class="hidden md:flex gap-1"></nav>
             </div>
 
             <div class="flex items-center gap-3">
-                <button type="button" onclick="saveSession()" class="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-full" title="Save Progress">
+                <button type="button" onclick="toggleTheme()" class="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:text-indigo-400 dark:hover:bg-slate-800 rounded-full transition-colors" title="Toggle Theme">
+                    <i data-lucide="moon" id="theme-icon-header" class="w-5 h-5"></i>
+                </button>
+
+                <button type="button" onclick="saveSession()" class="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-slate-800 rounded-full" title="Save Progress">
                     <i data-lucide="save" class="w-5 h-5"></i>
                 </button>
 
@@ -242,9 +274,9 @@
 
         <div class="flex-1 flex overflow-hidden relative">
             <!-- PDF Wrapper -->
-            <div class="w-1/2 h-full bg-slate-900 border-r border-slate-800 relative group">
+            <div class="w-1/2 h-full bg-slate-200 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 relative group transition-colors duration-300">
                 <!-- Toolbar within PDF Area -->
-                <div class="absolute top-4 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-lg px-4 py-2 z-20 flex gap-3 items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <div class="absolute top-4 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-lg px-4 py-2 z-20 flex gap-3 items-center opacity-0 group-hover:opacity-100 transition-opacity border border-slate-200">
                     <button onclick="setMode('read')" id="mode-read" class="tool-btn active p-2 rounded-full hover:bg-slate-100" title="Read / Select Text">
                         <i data-lucide="mouse-pointer-2" class="w-4 h-4"></i>
                     </button>
@@ -268,34 +300,34 @@
             </div>
             
             <!-- Answer Sheets -->
-            <div class="w-1/2 h-full bg-slate-950 relative" id="sheets-container"></div>
+            <div class="w-1/2 h-full bg-white dark:bg-slate-950 relative transition-colors duration-300" id="sheets-container"></div>
         </div>
     </div>
 
     <!-- EXAMINER PANEL -->
-    <div id="examiner-notepad" class="absolute top-0 right-0 h-full glass border-l border-slate-800 shadow-2xl z-30 hidden-panel flex flex-col backdrop-blur-xl">
-        <div class="p-4 bg-slate-900 text-white flex justify-between items-center">
+    <div id="examiner-notepad" class="absolute top-0 right-0 h-full glass border-l border-slate-200 dark:border-slate-800 shadow-2xl z-30 hidden-panel flex flex-col backdrop-blur-xl">
+        <div class="p-4 bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-white flex justify-between items-center border-b border-slate-200 dark:border-slate-800">
             <h3 class="font-bold flex items-center gap-2"><i data-lucide="check-square" class="w-4 h-4"></i> Examiner Tools</h3>
-            <button type="button" onclick="toggleExaminerMode()" class="hover:text-slate-300"><i data-lucide="x" class="w-4 h-4"></i></button>
+            <button type="button" onclick="toggleExaminerMode()" class="hover:text-slate-500 dark:hover:text-slate-300"><i data-lucide="x" class="w-4 h-4"></i></button>
         </div>
-        <div class="p-4 border-b border-slate-100 bg-slate-50">
+        <div class="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
             <p class="text-xs font-bold text-slate-500 mb-2 uppercase">Freehand Pen</p>
             <div class="flex gap-2 mb-3">
-                <button type="button" onclick="setPenColor('rgba(250, 204, 21, 0.5)', this)" class="color-btn active w-6 h-6 rounded-full bg-yellow-300"></button>
-                <button type="button" onclick="setPenColor('rgba(74, 222, 128, 0.5)', this)" class="color-btn w-6 h-6 rounded-full bg-green-400"></button>
-                <button type="button" onclick="setPenColor('rgba(244, 114, 182, 0.5)', this)" class="color-btn w-6 h-6 rounded-full bg-pink-400"></button>
-                <button type="button" onclick="setEraser(this)" class="color-btn w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center"><i data-lucide="eraser" class="w-3 h-3 text-slate-600"></i></button>
-                <button type="button" onclick="undoLastHighlight()" class="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center hover:bg-slate-700 transition-colors ml-auto" title="Undo"><i data-lucide="undo-2" class="w-3 h-3 text-white"></i></button>
+                <button type="button" onclick="setPenColor('rgba(250, 204, 21, 0.5)', this)" class="color-btn active w-6 h-6 rounded-full bg-yellow-300 border border-slate-200"></button>
+                <button type="button" onclick="setPenColor('rgba(74, 222, 128, 0.5)', this)" class="color-btn w-6 h-6 rounded-full bg-green-400 border border-slate-200"></button>
+                <button type="button" onclick="setPenColor('rgba(244, 114, 182, 0.5)', this)" class="color-btn w-6 h-6 rounded-full bg-pink-400 border border-slate-200"></button>
+                <button type="button" onclick="setEraser(this)" class="color-btn w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700"><i data-lucide="eraser" class="w-3 h-3 text-slate-600 dark:text-slate-400"></i></button>
+                <button type="button" onclick="undoLastHighlight()" class="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors ml-auto" title="Undo"><i data-lucide="undo-2" class="w-3 h-3 text-slate-600 dark:text-white"></i></button>
             </div>
-            <input type="range" min="4" max="40" value="12" class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer" oninput="setPenSize(this.value)">
+            <input type="range" min="4" max="40" value="12" class="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="setPenSize(this.value)">
         </div>
-        <div class="flex-1 p-4 bg-yellow-50">
-            <textarea id="examiner-notes" class="w-full h-full bg-transparent resize-none outline-none font-hand text-slate-800 text-lg leading-loose placeholder-slate-400" placeholder="Notes..."></textarea>
+        <div class="flex-1 p-4 bg-yellow-50 dark:bg-slate-900/50">
+            <textarea id="examiner-notes" class="w-full h-full bg-transparent resize-none outline-none font-hand text-slate-800 dark:text-slate-200 text-lg leading-loose placeholder-slate-400" placeholder="Notes..."></textarea>
         </div>
-        <div class="p-4 bg-slate-100 border-t border-slate-200">
+        <div class="p-4 bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
             <div class="flex justify-between items-center">
-                <span class="font-bold text-slate-700">Calculated Score</span>
-                <span class="bg-slate-800 text-white px-3 py-1 rounded font-mono font-bold" id="calc-score">-</span>
+                <span class="font-bold text-slate-700 dark:text-slate-300">Calculated Score</span>
+                <span class="bg-slate-800 dark:bg-slate-700 text-white px-3 py-1 rounded font-mono font-bold" id="calc-score">-</span>
             </div>
         </div>
     </div>
@@ -319,6 +351,7 @@
         let highlighterColor = 'rgba(250, 204, 21, 0.5)';
         let highlighterSize = 12;
         let isEraser = false;
+        let isDark = true;
         
         // Drawing History for Undo
         let drawingHistory = [];
@@ -329,6 +362,46 @@
         let audioBlob = null;
         let isRecording = false;
         let audioContext, analyser, dataArray, source, animationId, speakingInterval;
+
+        // THEME LOGIC
+        function initTheme() {
+            const saved = localStorage.getItem('uniPrep_theme');
+            if (saved === 'light') {
+                setTheme(false);
+            } else {
+                setTheme(true);
+            }
+        }
+
+        function toggleTheme() {
+            setTheme(!isDark);
+        }
+
+        function setTheme(dark) {
+            isDark = dark;
+            const html = document.documentElement;
+            const sidebarIcon = document.getElementById('theme-icon-sidebar');
+            const headerIcon = document.getElementById('theme-icon-header');
+            const sidebarText = document.getElementById('theme-text-sidebar');
+
+            if (dark) {
+                html.classList.add('dark');
+                localStorage.setItem('uniPrep_theme', 'dark');
+                if(sidebarIcon) sidebarIcon.setAttribute('data-lucide', 'moon');
+                if(headerIcon) headerIcon.setAttribute('data-lucide', 'moon');
+                if(sidebarText) sidebarText.textContent = 'Dark Mode';
+            } else {
+                html.classList.remove('dark');
+                localStorage.setItem('uniPrep_theme', 'light');
+                if(sidebarIcon) sidebarIcon.setAttribute('data-lucide', 'sun');
+                if(headerIcon) headerIcon.setAttribute('data-lucide', 'sun');
+                if(sidebarText) sidebarText.textContent = 'Light Mode';
+            }
+            lucide.createIcons();
+        }
+
+        // Initialize immediately
+        initTheme();
 
         // CONFIG
         const examConfigs = {
@@ -351,6 +424,7 @@
 
         // SETUP
         function selectExam(type, el) {
+            if (currentExam === type) return;
             currentExam = type;
             document.querySelectorAll('.exam-btn').forEach(e => {
                 e.classList.remove('bg-blue-50', 'border-blue-500', 'text-blue-600', 'bg-pink-50', 'border-pink-500', 'text-pink-600', 'bg-red-50', 'border-red-500', 'text-red-600');
