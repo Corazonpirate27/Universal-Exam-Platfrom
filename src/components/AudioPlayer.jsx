@@ -87,7 +87,7 @@ export default function AudioPlayer({ files }) {
   const currentTrack = tracks[currentIndex];
 
   return (
-    <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 dark:bg-slate-800">
+    <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded border border-slate-300 bg-white px-2 py-1 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <audio
         ref={audioRef}
         src={currentTrack?.url || ''}
@@ -127,7 +127,8 @@ export default function AudioPlayer({ files }) {
         </>
       )}
 
-      <button type="button" className="btn h-9 min-h-9 px-3" onClick={toggle} aria-label={playing ? 'Pause audio' : 'Play audio'}>
+      <button type="button" className="acrobat-tool h-9 min-h-9 px-3" onClick={toggle} aria-label={playing ? 'Pause audio' : 'Play audio'}>
+        <span aria-hidden="true">{playing ? 'Ⅱ' : '▶'}</span>
         {playing ? 'Pause' : 'Play'}
       </button>
       <span className="min-w-24 text-center font-mono text-xs font-bold">

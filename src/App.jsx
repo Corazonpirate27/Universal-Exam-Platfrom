@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SetupScreen from './components/SetupScreen';
 import ExamLayout from './components/ExamLayout';
-import ReviewModal from './components/ReviewModal';
-import RoughWorkCanvas from './components/RoughWorkCanvas';
 import { examService } from './services/examService';
 import { flattenQuestions } from './data/examTemplates';
 import { buildAnswerExport, isAnswered, safeFileName } from './utils/exam';
+
+const ReviewModal = lazy(() => import('./components/ReviewModal'));
+const RoughWorkCanvas = lazy(() => import('./components/RoughWorkCanvas'));
 
 const themeFromStorage = () => localStorage.getItem('uep_theme') || 'light';
 
@@ -27,11 +28,52 @@ export default function App() {
   const sessionRef = useRef(null);
 
   const questions = useMemo(() => (exam ? flattenQuestions(exam) : []), [exam]);
-  const foundQuestionIndex = questions.findIndex((question) => question.id === session?.currentQuestionId);
+  const questionIndexById = useMemo(
+    () => new Map(questions.map((question, index) => [question.id, index])),
+    [questions],
+  );
+  const questionsBySection = useMemo(() => {
+    const grouped = new Map();
+    questions.forEach((question) => {
+      if (!grouped.has(question.sectionId)) grouped.set(question.sectionId, []);
+      grouped.get(question.sectionId).push(question);
+    });
+    return grouped;
+  }, [questions]);
+  const foundQuestionIndex = questionIndexById.get(session?.currentQuestionId) ?? -1;
   const currentQuestionIndex = foundQuestionIndex >= 0 ? foundQuestionIndex : 0;
   const currentQuestion = questions[currentQuestionIndex] || questions[0];
-  const answeredCount = questions.filter((question) => isAnswered(session?.answers?.[question.id])).length;
-  const flaggedCount = Object.values(session?.flags || {}).filter(Boolean).length;
+  const answeredCount = useMemo(
+    () => questions.filter((question) => isAnswered(session?.answers?.[question.id])).length,
+    [questions, session?.answers],
+  );
+  const flaggedCount = useMemo(
+    () => Object.values(session?.flags || {}).filter(Boolean).length,
+    [session?.flags],
+  );
+  const sectionQuestions = useMemo(
+    () => (currentQuestion ? questionsBySection.get(currentQuestion.sectionId) || [] : []),
+    [currentQuestion, questionsBySection],
+  );
+  const sectionAnsweredCount = useMemo(
+    () => sectionQuestions.filter((question) => isAnswered(session?.answers?.[question.id])).length,
+    [sectionQuestions, session?.answers],
+  );
+  const sectionStats = useMemo(() => {
+    if (!exam) return [];
+    return exam.sections.map((section) => {
+      const sectionItems = questionsBySection.get(section.id) || [];
+      return {
+        id: section.id,
+        title: section.title,
+        firstQuestionId: sectionItems[0]?.id || '',
+        questionCount: sectionItems.length,
+        answeredCount: sectionItems.filter((question) => isAnswered(session?.answers?.[question.id])).length,
+        flaggedCount: sectionItems.filter((question) => session?.flags?.[question.id]).length,
+        active: sectionItems.some((question) => question.id === session?.currentQuestionId),
+      };
+    });
+  }, [exam, questionsBySection, session?.answers, session?.currentQuestionId, session?.flags]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -56,7 +98,7 @@ export default function App() {
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [session]);
+  }, [session?.status]);
 
   useEffect(() => {
     if (!session || session.status !== 'in-progress') return undefined;
@@ -94,24 +136,24 @@ export default function App() {
     setResult(savedResult);
   }, []);
 
-  const startExam = async () => {
+  const startExam = useCallback(async () => {
     const createdSession = await examService.createExamSession(setup);
     const loadedExam = await examService.fetchExam(setup.templateId);
     setExam(loadedExam);
     setSession(createdSession);
     setResult(null);
     setResumeSession(null);
-  };
+  }, [setup]);
 
-  const updateSession = (updater) => {
+  const updateSession = useCallback((updater) => {
     setSession((current) => {
       if (!current || current.status === 'submitted') return current;
       const next = typeof updater === 'function' ? updater(current) : updater;
       return { ...next, updatedAt: new Date().toISOString() };
     });
-  };
+  }, []);
 
-  const saveAnswer = (questionId, value) => {
+  const saveAnswer = useCallback((questionId, value) => {
     updateSession((current) => ({
       ...current,
       answers: {
@@ -119,10 +161,10 @@ export default function App() {
         [questionId]: value,
       },
     }));
-    if (session?.id) examService.saveAnswer(session.id, questionId, value);
-  };
+    if (sessionRef.current?.id) examService.saveAnswer(sessionRef.current.id, questionId, value);
+  }, [updateSession]);
 
-  const toggleFlag = (questionId) => {
+  const toggleFlag = useCallback((questionId) => {
     updateSession((current) => ({
       ...current,
       flags: {
@@ -130,26 +172,37 @@ export default function App() {
         [questionId]: !current.flags?.[questionId],
       },
     }));
-  };
+  }, [updateSession]);
 
-  const goToQuestion = (questionId) => {
+  const goToQuestion = useCallback((questionId) => {
     updateSession((current) => ({ ...current, currentQuestionId: questionId }));
-  };
+  }, [updateSession]);
 
-  const goToOffset = (offset) => {
+  const goToOffset = useCallback((offset) => {
     const nextQuestion = questions[currentQuestionIndex + offset];
     if (nextQuestion) goToQuestion(nextQuestion.id);
-  };
+  }, [currentQuestionIndex, goToQuestion, questions]);
 
-  const submitExam = async () => {
-    const submittedResult = await examService.submitExam(session);
+  const goToPrevious = useCallback(() => goToOffset(-1), [goToOffset]);
+  const goToNext = useCallback(() => goToOffset(1), [goToOffset]);
+  const openReview = useCallback(() => setReviewOpen(true), []);
+  const closeReview = useCallback(() => setReviewOpen(false), []);
+  const openRoughWork = useCallback(() => setRoughOpen(true), []);
+  const closeRoughWork = useCallback(() => setRoughOpen(false), []);
+
+  const submitExam = useCallback(async () => {
+    const currentSession = sessionRef.current;
+    if (!currentSession) return;
+    const submittedResult = await examService.submitExam(currentSession);
     const submittedSession = await examService.getActiveSession();
     setSession(submittedSession);
     setResult(submittedResult);
     setReviewOpen(false);
-  };
+  }, []);
 
-  const exportAnswers = () => {
+  const exportAnswers = useCallback(() => {
+    if (!exam || !sessionRef.current) return;
+    const session = sessionRef.current;
     const text = buildAnswerExport({ exam, session, questions });
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -160,7 +213,7 @@ export default function App() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  };
+  }, [exam, questions]);
 
   if (!session || !exam) {
     return (
@@ -188,6 +241,9 @@ export default function App() {
         questions={questions}
         currentQuestion={currentQuestion}
         currentQuestionIndex={currentQuestionIndex}
+        sectionQuestions={sectionQuestions}
+        sectionAnsweredCount={sectionAnsweredCount}
+        sectionStats={sectionStats}
         answeredCount={answeredCount}
         flaggedCount={flaggedCount}
         theme={theme}
@@ -197,25 +253,33 @@ export default function App() {
         onAnswer={saveAnswer}
         onFlag={toggleFlag}
         onGoToQuestion={goToQuestion}
-        onPrevious={() => goToOffset(-1)}
-        onNext={() => goToOffset(1)}
-        onReview={() => setReviewOpen(true)}
-        onRoughWork={() => setRoughOpen(true)}
+        onPrevious={goToPrevious}
+        onNext={goToNext}
+        onReview={openReview}
+        onRoughWork={openRoughWork}
         onExport={exportAnswers}
         result={result}
       />
-      <ReviewModal
-        open={reviewOpen}
-        session={session}
-        questions={questions}
-        answeredCount={answeredCount}
-        flaggedCount={flaggedCount}
-        onClose={() => setReviewOpen(false)}
-        onGoToQuestion={goToQuestion}
-        onSubmit={submitExam}
-        onExport={exportAnswers}
-      />
-      <RoughWorkCanvas open={roughOpen} onClose={() => setRoughOpen(false)} />
+      {reviewOpen && (
+        <Suspense fallback={null}>
+          <ReviewModal
+            open={reviewOpen}
+            session={session}
+            questions={questions}
+            answeredCount={answeredCount}
+            flaggedCount={flaggedCount}
+            onClose={closeReview}
+            onGoToQuestion={goToQuestion}
+            onSubmit={submitExam}
+            onExport={exportAnswers}
+          />
+        </Suspense>
+      )}
+      {roughOpen && (
+        <Suspense fallback={null}>
+          <RoughWorkCanvas open={roughOpen} onClose={closeRoughWork} />
+        </Suspense>
+      )}
     </>
   );
 }
