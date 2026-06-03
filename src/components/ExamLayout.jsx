@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import AnswerSheet from './AnswerSheet';
 import AudioPlayer from './AudioPlayer';
 import PDFViewer from './PDFViewer';
@@ -5,12 +6,15 @@ import SectionTabs from './SectionTabs';
 import ThemeToggle from './ThemeToggle';
 import Timer from './Timer';
 
-export default function ExamLayout({
+function ExamLayout({
   exam,
   session,
   questions,
   currentQuestion,
   currentQuestionIndex,
+  sectionQuestions,
+  sectionAnsweredCount,
+  sectionStats,
   answeredCount,
   flaggedCount,
   theme,
@@ -102,17 +106,18 @@ export default function ExamLayout({
         <PDFViewer file={pdfFile} />
         <div className="flex min-h-0 flex-1 flex-col border-l border-[#b6b6b6] bg-[#f4f4f4] dark:border-slate-700 dark:bg-[#20252b]">
           <SectionTabs
-            exam={exam}
-            currentQuestionId={session.currentQuestionId}
-            answers={session.answers}
-            flags={session.flags}
+            sectionStats={sectionStats}
             onGoToQuestion={onGoToQuestion}
           />
           <AnswerSheet
             questions={questions}
+            sectionQuestions={sectionQuestions}
+            sectionAnsweredCount={sectionAnsweredCount}
             currentQuestion={currentQuestion}
             currentQuestionIndex={currentQuestionIndex}
-            session={session}
+            answers={session.answers}
+            flags={session.flags}
+            status={session.status}
             onAnswer={onAnswer}
             onFlag={onFlag}
             onGoToQuestion={onGoToQuestion}
@@ -124,3 +129,5 @@ export default function ExamLayout({
     </div>
   );
 }
+
+export default memo(ExamLayout);

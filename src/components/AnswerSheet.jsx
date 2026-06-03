@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { QUESTION_TYPES } from '../data/examTemplates';
 import { countWords, isAnswered } from '../utils/exam';
 
@@ -35,22 +36,25 @@ function QuestionInput({ question, value, disabled, onAnswer }) {
   );
 }
 
-export default function AnswerSheet({
+function AnswerSheet({
   questions,
+  sectionQuestions,
+  sectionAnsweredCount,
   currentQuestion,
   currentQuestionIndex,
-  session,
+  answers,
+  flags,
+  status,
   onAnswer,
   onFlag,
   onGoToQuestion,
   onPrevious,
   onNext,
 }) {
-  const disabled = session.status === 'submitted';
+  const disabled = status === 'submitted';
   const isFirst = currentQuestionIndex <= 0;
   const isLast = currentQuestionIndex >= questions.length - 1;
-  const flagged = Boolean(session.flags[currentQuestion.id]);
-  const sectionQuestions = questions.filter((question) => question.sectionId === currentQuestion.sectionId);
+  const flagged = Boolean(flags[currentQuestion.id]);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col bg-[#f4f4f4] dark:bg-[#20252b]">
@@ -69,14 +73,14 @@ export default function AnswerSheet({
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-extrabold">Answer Sheet</h3>
             <p className="text-xs font-bold text-slate-500">
-              {sectionQuestions.filter((question) => isAnswered(session.answers[question.id])).length}/{sectionQuestions.length} answered
+              {sectionAnsweredCount}/{sectionQuestions.length} answered
             </p>
           </div>
           <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 xl:grid-cols-10">
             {sectionQuestions.map((question) => {
               const active = question.id === currentQuestion.id;
-              const answered = isAnswered(session.answers[question.id]);
-              const isFlagged = Boolean(session.flags[question.id]);
+              const answered = isAnswered(answers[question.id]);
+              const isFlagged = Boolean(flags[question.id]);
 
               return (
                 <button
@@ -138,7 +142,7 @@ export default function AnswerSheet({
             </label>
             <QuestionInput
               question={currentQuestion}
-              value={session.answers[currentQuestion.id]}
+              value={answers[currentQuestion.id]}
               disabled={disabled}
               onAnswer={onAnswer}
             />
@@ -162,3 +166,5 @@ export default function AnswerSheet({
     </section>
   );
 }
+
+export default memo(AnswerSheet);

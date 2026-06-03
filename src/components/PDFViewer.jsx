@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 
-export default function PDFViewer({ file }) {
+function PDFViewer({ file }) {
   const [openOnMobile, setOpenOnMobile] = useState(Boolean(file));
   const url = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   const embeddedUrl = useMemo(() => (url ? `${url}#toolbar=0&navpanes=0&pagemode=none&view=FitH` : null), [url]);
@@ -69,3 +69,5 @@ export default function PDFViewer({ file }) {
     </section>
   );
 }
+
+export default memo(PDFViewer);
